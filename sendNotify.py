@@ -65,6 +65,8 @@ def pushplus_bot(title, content):
         "token": PUSH_PLUS_TOKEN,
         "title": title,
         "content": content
+        "channel": "mail"
+        "webhook":"" 
     }
     headers = {'Content-Type': 'application/json'}
     try:
