@@ -320,7 +320,7 @@ class AbleSciAuto:
         # 添加额外空行
         self.log("")
     def run(self):
-        """执行完整的登录和签到流程，并返回结果"""
+    """执行完整的登录和签到流程，并返回结果"""
         if self.login():
             self.get_user_info()
             self.display_summary(is_before_sign=True)
@@ -385,49 +385,62 @@ def get_accounts():
 
 def main():
     """主函数，处理多账号签到"""
+    # 创建全局通知器
     global_notifier = Notifier()
     global_notifier.log("科研通多账号签到任务开始", "info")
-
+    
+    # 获取所有账号
     accounts = get_accounts()
-    if not accounts:
+    account_count = len(accounts)
+    
+    if account_count == 0:
         global_notifier.log("未找到有效的账号配置", "error")
-        global_notifier.log(f"请设置环境变量 {ENV_ACCOUNTS}，格式为：邮箱1:密码1", "warning")
+        global_notifier.log(f"请设置环境变量 {ENV_ACCOUNTS}，格式为：邮箱1:密码1[换行]邮箱2:密码2", "warning")
         if global_notifier.notify_enabled:
             global_notifier.send_notification()
         return
-
-    global_notifier.log(f"找到 {len(accounts)} 个账号", "info")
-
+    
+    global_notifier.log(f"找到 {account_count} 个账号", "info")
+    
+    # 执行每个账号的签到任务
     all_logs = []
-    is_already_signed_for_all = True # 新增一个标志，假设所有账号都已签到
-
+    results = []  # 【新增】用于收集每个账号的详细结果
     for i, (email, password) in enumerate(accounts, 1):
-        global_notifier.log(f"\n===== 开始处理第 {i}/{len(accounts)} 个账号 =====", "info")
-
+        global_notifier.log(f"\n===== 开始处理第 {i}/{account_count} 个账号 =====", "info")
+        
+        # 创建并执行签到实例
         automator = AbleSciAuto(email, password)
-        account_log = automator.run()
-        all_logs.append(account_log)
-
-        # 检查当前账号是否不是“已签到”状态
-        if "今日已签到" not in account_log:
-            is_already_signed_for_all = False # 只要有一个不是“已签到”，就将标志设为False
-
-        global_notifier.log(f"===== 完成第 {i}/{len(accounts)} 个账号处理 =====", "info")
-
+        # 【修改】接收并保存详细结果
+        result_data = automator.run()
+        results.append(result_data)
+        all_logs.append(result_data['log'])
+        
+        # 添加分隔符
+        global_notifier.log(f"===== 完成第 {i}/{account_count} 个账号处理 =====", "info")
+    
+    # 汇总所有日志
     global_notifier.log("\n===== 所有账号处理完成 =====", "info")
     full_log = "\n\n".join(all_logs)
+    
+    # 【修改】根据结果判断是否发送通知
+    all_already_signed = all(r['status'] == '已签到' for r in results)
 
-    # 只有在并非“所有账号都已签到”的情况下，才发送通知
-    if not is_already_signed_for_all:
-        if global_notifier.notify_enabled:
-            summary_notifier = Notifier()
-            summary_notifier.log_content = full_log.splitlines()
-            summary_notifier.send_notification()
-    else:
+    if all_already_signed:
         global_notifier.log("所有账号今日均已签到，无需发送通知。")
-
+    elif global_notifier.notify_enabled and results: # 确保results不为空
+        # 1. 使用第一个账号的结果来生成标题
+        first_account_result = results[0]
+        status = first_account_result['status']
+        points = first_account_result['points'] or "未知"
+        final_title = f"科研通签到{status} - 积分: {points}"
+        
+        # 2. 发送通知 (内容不变，依然是完整的日志)
+        summary_notifier = Notifier()
+        summary_notifier.log_content = full_log.splitlines()
+        summary_notifier.send_notification(title=final_title)
+    
+    # 在GitHub Actions环境中输出日志内容
     if IS_GITHUB_ACTIONS:
         print(f"::set-output name=log_content::{full_log}")
-        
 if __name__ == "__main__":
     main()
