@@ -92,19 +92,17 @@ class Notifier:
         print(log_message)
         self.log_content.append(log_message)
         
-    def send_notification(self, title=None):
-        """发送通知，支持传入动态标题"""
+    def send_notification(self):
+        """发送通知"""
         if not self.notify_enabled:
             self.log("通知功能未启用", "warning")
             return False
-    
-        # 如果传入了新标题，则使用新标题，否则使用默认标题
-        final_title = title if title else self.title
+            
         content = "\n".join(self.log_content)
-    
+        
         try:
-            self.send(final_title, content)
-            self.log(f"通知发送成功", "success")
+            self.send(self.title, content)
+            self.log("通知发送成功", "success")
             return True
         except Exception as e:
             self.log(f"发送通知失败: {str(e)}", "error")
@@ -122,7 +120,6 @@ class AbleSciAuto:
         self.username = None  # 存储用户名
         self.points = None    # 存储当前积分
         self.sign_days = None # 存储连续签到天数
-        self.status = "失败"  # 存储最终状态
         self.notifier = Notifier()
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
@@ -269,7 +266,6 @@ class AbleSciAuto:
                     result = response.json()
                     if result.get("code") == 0:
                         self.log(f"签到成功: {result.get('msg')}", "success")
-                        self.status = "成功"
                         
                         # 尝试从响应中获取新的积分和签到天数
                         data = result.get("data", {})
@@ -287,11 +283,9 @@ class AbleSciAuto:
                         # 特殊处理已签到情况
                         if "已经签到" in msg or "已签到" in msg:
                             self.log(f"今日已签到: {msg}", "info")
-                            self.status = "已签到"
                             return True
                         else:
                             self.log(f"签到失败: {msg}", "error")
-                            self.status = "失败"
                 except json.JSONDecodeError:
                     self.log("签到响应不是有效的JSON", "error")
             else:
@@ -319,27 +313,26 @@ class AbleSciAuto:
         
         # 添加额外空行
         self.log("")
+
     def run(self):
-    """执行完整的登录和签到流程，并返回结果"""
+        """执行完整的登录和签到流程"""
         if self.login():
+            # 登录成功后获取并显示用户信息
             self.get_user_info()
             self.display_summary(is_before_sign=True)
-    
+            
+            # 执行签到
             sign_result = self.sign_in()
-    
-            # 只有在签到成功时才刷新信息，已签到或失败则无需刷新
-            if sign_result and self.status == "成功":
-                self.log("签到成功，刷新用户信息...", "info")
-                time.sleep(2)
+            
+            # 签到后刷新页面并再次获取用户信息
+            if sign_result:
+                self.log("签到完成，刷新用户信息...", "info")
+                time.sleep(2)  # 等待2秒让服务器处理
                 self.get_user_info()
                 self.display_summary(is_before_sign=False)
-    
-        # 返回一个包含所有重要信息的字典
-        return {
-            "log": self.notifier.get_content(),
-            "status": self.status,
-            "points": self.points
-        }
+        
+        # 返回日志内容，供主程序汇总
+        return self.notifier.get_content()
 
 def get_accounts():
     """从环境变量获取所有账号"""
@@ -404,16 +397,13 @@ def main():
     
     # 执行每个账号的签到任务
     all_logs = []
-    results = []  # 【新增】用于收集每个账号的详细结果
     for i, (email, password) in enumerate(accounts, 1):
         global_notifier.log(f"\n===== 开始处理第 {i}/{account_count} 个账号 =====", "info")
         
         # 创建并执行签到实例
         automator = AbleSciAuto(email, password)
-        # 【修改】接收并保存详细结果
-        result_data = automator.run()
-        results.append(result_data)
-        all_logs.append(result_data['log'])
+        account_log = automator.run()
+        all_logs.append(account_log)
         
         # 添加分隔符
         global_notifier.log(f"===== 完成第 {i}/{account_count} 个账号处理 =====", "info")
@@ -422,25 +412,16 @@ def main():
     global_notifier.log("\n===== 所有账号处理完成 =====", "info")
     full_log = "\n\n".join(all_logs)
     
-    # 【修改】根据结果判断是否发送通知
-    all_already_signed = all(r['status'] == '已签到' for r in results)
-
-    if all_already_signed:
-        global_notifier.log("所有账号今日均已签到，无需发送通知。")
-    elif global_notifier.notify_enabled and results: # 确保results不为空
-        # 1. 使用第一个账号的结果来生成标题
-        first_account_result = results[0]
-        status = first_account_result['status']
-        points = first_account_result['points'] or "未知"
-        final_title = f"科研通签到{status} - 积分: {points}"
-        
-        # 2. 发送通知 (内容不变，依然是完整的日志)
+    # 发送汇总通知
+    if global_notifier.notify_enabled:
+        # 创建新通知器用于发送汇总通知
         summary_notifier = Notifier()
         summary_notifier.log_content = full_log.splitlines()
-        summary_notifier.send_notification(title=final_title)
+        summary_notifier.send_notification()
     
     # 在GitHub Actions环境中输出日志内容
     if IS_GITHUB_ACTIONS:
         print(f"::set-output name=log_content::{full_log}")
+
 if __name__ == "__main__":
     main()
