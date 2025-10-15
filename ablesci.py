@@ -320,7 +320,7 @@ class AbleSciAuto:
         # 添加额外空行
         self.log("")
     def run(self):
-    """执行完整的登录和签到流程，并返回结果"""
+        """执行完整的登录和签到流程，并返回结果"""
         if self.login():
             self.get_user_info()
             self.display_summary(is_before_sign=True)
