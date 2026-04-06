@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: '40 13,23 * * *'  # UTC时间(北京时间为21:40和次日7:40)
 
+permissions:
+  contents: write
+
 jobs:
   sign:
     runs-on: ubuntu-latest
@@ -42,3 +45,11 @@ jobs:
       - name: Display Log
         run: |
           echo "$LOG_CONTENT"
+
+      - name: Keep-alive push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "Last run: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S') (北京时间)" > last_run.txt
+          git add last_run.txt
+          git diff --cached --quiet || (git commit -m "chore: keep-alive [skip ci]" && git push)

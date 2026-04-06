@@ -116,8 +116,6 @@ user3@example.com:password3
 ```
 
 
-
-<<<<<<< HEAD
 ![添加Secrets](./img/image-20240926213937401.png)
 ![image-20250807033325755](./img/image-20250807033325755.png)
 
