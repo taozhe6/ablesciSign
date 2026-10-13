@@ -1,0 +1,65 @@
+name: AbleSci Config Diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Print masked configuration only
+        env:
+          GITHUB_ACTIONS: true
+          ABLESCI_ACCOUNTS: ${{ secrets.ABLESCI_ACCOUNTS }}
+          PUSH_PLUS_TOKEN: ${{ secrets.PUSH_PLUS_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os
+          import platform
+          import re
+          from pathlib import Path
+          from ablesci import get_accounts, protect_privacy
+
+          sign_workflow = Path('.github/workflows/ablesciSign.yml').read_text(encoding='utf-8')
+          notify_source = Path('sendNotify.py').read_text(encoding='utf-8')
+          cron = re.search(r"cron:\s*'([^']+)'", sign_workflow).group(1)
+          channel = re.search(r'"channel":\s*"([^"]*)"', notify_source).group(1)
+          webhook = re.search(r'"webhook":\s*"([^"]*)"', notify_source).group(1)
+
+          print('===== 独立配置诊断（手动、脱敏） =====')
+          print(f"Python: {platform.python_version()}; Runner: {os.getenv('RUNNER_OS', '')}")
+          print(f"触发方式: {os.getenv('GITHUB_EVENT_NAME', '')}")
+          print(f"分支: {os.getenv('GITHUB_REF_NAME', '')}; 提交: {os.getenv('GITHUB_SHA', '')[:12]}")
+          print(f'签到工作流 cron（UTC）: {cron}')
+          keep_alive = '已配置' if 'name: Keep-alive push' in sign_workflow else '未配置'
+          print(f'签到工作流保活步骤: {keep_alive}')
+          for name in ('ABLESCI_ACCOUNTS', 'SCKEY', 'XZKEY', 'PUSH_PLUS_TOKEN'):
+              state = '已配置（内容隐藏）' if os.getenv(name) else '未配置'
+              print(f'{name}: {state}')
+          accounts = get_accounts()
+          print(f'有效账号数: {len(accounts)}')
+          for index, (email, password) in enumerate(accounts, 1):
+              password_state = '已配置（内容隐藏）' if password else '未配置'
+              print(f'账号 {index}: {protect_privacy(email)}; 密码: {password_state}')
+          print(f'PushPlus channel: {channel}')
+          webhook_state = '已配置（内容隐藏）' if webhook else '未配置'
+          print(f'PushPlus webhook: {webhook_state}')
+          print('本次仅输出配置，登录、签到及推送均未执行。')
+          print('===== 独立配置诊断结束 =====')
+          PY
