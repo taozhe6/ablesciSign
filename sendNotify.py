@@ -10,6 +10,8 @@ import urllib.parse
 SCKEY = os.getenv("SCKEY", "")  # Server酱的SCKEY
 XZKEY = os.getenv("XZKEY", "")  # 息知的XZKEY
 PUSH_PLUS_TOKEN = os.getenv("PUSH_PLUS_TOKEN", "")  # PushPlus的TOKEN
+PUSH_PLUS_CHANNEL = "mail"
+PUSH_PLUS_WEBHOOK = ""
 
 # 消息容器
 message_info = ''''''
@@ -65,8 +67,8 @@ def pushplus_bot(title, content):
         "token": PUSH_PLUS_TOKEN,
         "title": title,
         "content": content,
-        "channel": "mail",
-        "webhook": "" 
+        "channel": PUSH_PLUS_CHANNEL,
+        "webhook": PUSH_PLUS_WEBHOOK
     }
     headers = {'Content-Type': 'application/json'}
     try:
