@@ -26,36 +26,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Show masked configuration
-        env:
-          GITHUB_ACTIONS: true
-          ABLESCI_ACCOUNTS: ${{ secrets.ABLESCI_ACCOUNTS }}
-          PUSH_PLUS_TOKEN: ${{ secrets.PUSH_PLUS_TOKEN }}
-        run: |
-          python - <<'PY'
-          import os
-          import platform
-          from ablesci import get_accounts, protect_privacy
-          import sendNotify
-
-          print("===== 当前配置（脱敏） =====")
-          print(f"Python: {platform.python_version()}; Runner: {os.getenv('RUNNER_OS', '')}")
-          print(f"触发方式: {os.getenv('GITHUB_EVENT_NAME', '')}")
-          print(f"分支: {os.getenv('GITHUB_REF_NAME', '')}; 提交: {os.getenv('GITHUB_SHA', '')[:12]}")
-          for name in ("ABLESCI_ACCOUNTS", "SCKEY", "XZKEY", "PUSH_PLUS_TOKEN"):
-              state = "已配置（内容隐藏）" if os.getenv(name) else "未配置"
-              print(f"{name}: {state}")
-          accounts = get_accounts()
-          print(f"有效账号数: {len(accounts)}")
-          for index, (email, password) in enumerate(accounts, 1):
-              password_state = "已配置（内容隐藏）" if password else "未配置"
-              print(f"账号 {index}: {protect_privacy(email)}; 密码: {password_state}")
-          print(f"PushPlus channel: {sendNotify.PUSH_PLUS_CHANNEL}")
-          webhook_state = "已配置（内容隐藏）" if sendNotify.PUSH_PLUS_WEBHOOK else "未配置"
-          print(f"PushPlus webhook: {webhook_state}")
-          print("===== 配置摘要结束 =====")
-          PY
-
       - name: Run AbleSci Sign
         id: sign
         run: python ablesci.py
